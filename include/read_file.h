@@ -65,6 +65,7 @@ public:
     // } txt_data;
 
     int idx(int i, int j, int k) {return k * inf_data.data_resolution[0] * inf_data.data_resolution[1] + j * inf_data.data_resolution[0] + i;}
+    int idx(int i, int j) {return j * vec_file.resolution[0] + i;}
     vector<unsigned char> cumulativeDistributionEqualization();
     vector<unsigned char> adaptiveHistogramEqualization(int side);
     vector<unsigned char> CLAHE(int block_edge, float threshold);

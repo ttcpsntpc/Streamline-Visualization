@@ -52,6 +52,59 @@ float lastFrame = 0.0f;
 ReadFile_c rf("../../vector/5");
 UIManager UI;
 
+const int BAC_WIDTH = 100;
+const int BAC_HEIGHT = 100;
+const int BAC_START_X = 20;
+const int BAC_START_Y = 20;
+
+// --- 輔助函式：取得指定位置的速度 (包含座標轉換與雙線性內插) ---
+glm::vec2 getVelocity(glm::vec2 P) {
+    int resX = rf.vec_file.resolution[0];
+    int resY = rf.vec_file.resolution[1];
+    
+    glm::vec2 p_grid = P * static_cast<float>(resX - 1) / static_cast<float>(BAC_WIDTH); // P點轉成網格座標
+    
+    // 取整數部分 (左下)
+    int x0 = static_cast<int>(p_grid.x);
+    int y0 = static_cast<int>(p_grid.y);
+    
+    // 處裡 (右上) 邊界
+    int x1 = std::min(x0 + 1, resX - 1);
+    int y1 = std::min(y0 + 1, resY - 1);
+
+    // 取得四個頂點的速度
+    glm::vec2 v00 = rf.vec_file.data[rf.idx(x0, y0)];
+    glm::vec2 v01 = rf.vec_file.data[rf.idx(x1, y0)];
+    glm::vec2 v10 = rf.vec_file.data[rf.idx(x0, y1)];
+    glm::vec2 v11 = rf.vec_file.data[rf.idx(x1, y1)];
+
+    // 計算權重
+    float tx = p_grid.x - static_cast<float>(x0);
+    float ty = p_grid.y - static_cast<float>(y0);
+
+    // 雙線性內插
+    return (1 - tx) * (1 - ty) * v00 + 
+           (1 - tx) * ty       * v10 + 
+           tx       * (1 - ty) * v01 + 
+           tx       * ty       * v11;
+}
+
+// RK2 method -> 用來依照較準確的速度算下一個點
+glm::vec2 RK2(glm::vec2 start_pos, float step) {
+    // 將世界座標轉換到局部座標
+    glm::vec2 P0 = start_pos - glm::vec2(BAC_START_X, BAC_START_Y);
+
+    glm::vec2 V0 = getVelocity(P0);
+
+    glm::vec2 P1 = P0 + step * V0;
+
+    glm::vec2 V1 = getVelocity(P1);
+
+    glm::vec2 next_pos = start_pos + step * 0.5f * (V0 + V1);
+    
+    return next_pos;
+}
+
 int main()
 {
     // glfw: initialize and configure
@@ -107,8 +160,8 @@ int main()
     Shader_c light_shader("shader/light_shader.vs", "shader/light_shader.fs");
 
     vertex.CreateVertices();
-    Object_c square_red;
-    square_red.CreateObject(vertices[0], {});
+    Object_c square_white;
+    square_white.CreateObject(vertices[0], {});
     Object_c square_blue;
     square_blue.CreateObject(vertices[1], {});
     Object_c cube;
@@ -161,13 +214,6 @@ int main()
         shader.setVec3("lightPos", lightPos);
         shader.setVec3("viewPos", camera.Position);
 
-        glBindVertexArray(cube.VAO_);
-        model = glm::mat4(1.0f);
-        model = glm::translate(model, glm::vec3(10.0f, 10.0f, 10.0f));
-        model = glm::scale(model, glm::vec3(10, 10, 10));
-        shader.setMat4("model", model);
-        glDrawArrays(GL_TRIANGLES, 0, cube.size);
-
 
         // active shader for background
         light_shader.use();
@@ -175,6 +221,14 @@ int main()
         light_shader.setMat4("view", view);
         light_shader.setMat4("projection", projection);
         
+        // draw the streamline background
+        glBindVertexArray(square_white.VAO_);
+        model = glm::mat4(1.0f);
+        model = glm::translate(model, glm::vec3(BAC_START_X, BAC_START_Y, 0));
+        model = glm::scale(model, glm::vec3(BAC_WIDTH, BAC_HEIGHT, 1));
+        light_shader.setMat4("model", model);
+        glDrawArrays(GL_TRIANGLES, 0, square_white.size);
+
         // draw the light
         glBindVertexArray(light_cube.VAO_);
         model = glm::mat4(1.0f);
