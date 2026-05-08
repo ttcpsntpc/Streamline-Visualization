@@ -49,7 +49,7 @@ bool moveObject = 0; // 在移動光源或是相機
 float deltaTime = 0.0f; // time between current frame and last frame
 float lastFrame = 0.0f;
 
-ReadFile_c rf("../../raw/");
+ReadFile_c rf("../../vector/5");
 UIManager UI;
 
 int main()

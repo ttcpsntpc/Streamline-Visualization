@@ -24,15 +24,21 @@ enum IndianType
 class ReadFile_c
 {
 private:
-    //bool ReadTxtFile(const char *txt_filename);
+    bool ReadVecFile(const char *vec_filename);
     bool ReadInfFile(const char *inf_filename);
     bool ReadRawFile(const char *raw_filename);
+    //bool ReadTxtFile(const char *txt_filename);
     template <typename T>
     T ReadAndConvert(std::ifstream& ifs);
 
 public:
     ReadFile_c(const char *filename);
     ~ReadFile_c();
+
+    struct VecData {
+        int resolution[2];
+        vector<glm::vec2> data;
+    } vec_file;
 
     struct InfData
     {
@@ -66,15 +72,50 @@ public:
 
 ReadFile_c::ReadFile_c(const char *filename)
 {
-    string inf_filename = string(filename) + ".inf";
-    string raw_filename = string(filename) + ".raw";
-    ReadInfFile(inf_filename.c_str());
-    ReadRawFile(raw_filename.c_str());
+    string vec_filename = string(filename) + ".vec";
+    ReadVecFile(vec_filename.c_str());
+    // string inf_filename = string(filename) + ".inf";
+    // string raw_filename = string(filename) + ".raw";
+    // ReadInfFile(inf_filename.c_str());
+    // ReadRawFile(raw_filename.c_str());
     //ReadTxtFile(txt_filename);
 }
 
 ReadFile_c::~ReadFile_c()
 {
+}
+
+bool ReadFile_c::ReadVecFile(const char *vec_filename)
+{
+    ifstream ifs(vec_filename, ios::in);
+    if(ifs.fail())
+    {
+        cout<< "Failed to open vec file." << '\n';
+        return false;
+    }
+
+    if (!(ifs >> vec_file.resolution[0] >> vec_file.resolution[1])) {
+        cout << "Failed to read resolution." << endl;
+        return false;
+    }
+
+    int total_vector = vec_file.resolution[0] * vec_file.resolution[1];
+    vec_file.data.clear();
+    vec_file.data.reserve(total_vector);
+
+    float x, y;
+    for(int i = 0; i < total_vector; i++) {
+        if(ifs >> x >> y)
+            vec_file.data.push_back(glm::vec2(x, y));
+        else {
+            cout<<"Warning: 資料實際個數和resolution乘積不一致"<<endl;
+            return false;
+        }
+    }
+
+    ifs.close();
+    cout<<"vector resolution: "<<vec_file.resolution[0]<<" "<<vec_file.resolution[1]<<endl;
+    return true;
 }
 
 bool ReadFile_c::ReadInfFile(const char *inf_filename)
