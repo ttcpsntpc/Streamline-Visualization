@@ -64,6 +64,7 @@ public:
     //     glm::vec3 max, min;
     // } txt_data;
 
+    void readFile(const char *filename);
     int idx(int i, int j, int k) {return k * inf_data.data_resolution[0] * inf_data.data_resolution[1] + j * inf_data.data_resolution[0] + i;}
     int idx(int i, int j) {return j * vec_file.resolution[0] + i;}
     vector<unsigned char> cumulativeDistributionEqualization();
@@ -86,6 +87,16 @@ ReadFile_c::~ReadFile_c()
 {
 }
 
+void ReadFile_c::readFile(const char *filename) {
+    string vec_filename = string(filename) + ".vec";
+    ReadVecFile(vec_filename.c_str());
+    // string inf_filename = string(filename) + ".inf";
+    // string raw_filename = string(filename) + ".raw";
+    // ReadInfFile(inf_filename.c_str());
+    // ReadRawFile(raw_filename.c_str());
+    //ReadTxtFile(txt_filename);
+}
+
 bool ReadFile_c::ReadVecFile(const char *vec_filename)
 {
     ifstream ifs(vec_filename, ios::in);
@@ -106,7 +117,7 @@ bool ReadFile_c::ReadVecFile(const char *vec_filename)
 
     float x, y;
     for(int i = 0; i < total_vector; i++) {
-        if(ifs >> x >> y)
+        if(ifs >> y >> x)
             vec_file.data.push_back(glm::vec2(x, y));
         else {
             cout<<"Warning: 資料實際個數和resolution乘積不一致"<<endl;
@@ -275,6 +286,8 @@ bool ReadFile_c::ReadRawFile(const char *raw_filename)
         temp_float_data.push_back(value);
     }
     cout<<endl<<maximum<<" "<<minimum<<endl;
+
+    raw_data.voxel_data.clear();
 
     // 將資料正規化到0~255
     float range = maximum - minimum;

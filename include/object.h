@@ -29,7 +29,7 @@ public:
             glDeleteBuffers(1, &EBO_);
         }
     }
-
+    
     void CreateObject(const std::vector<Vertex_c> &vertices, const std::vector<unsigned int> &indices)
     {
         glGenVertexArrays(1, &VAO_);

@@ -25,6 +25,9 @@ public:
     UIManager();
     ~UIManager();
 
+    bool isFileUpdata = false;
+    char filename[50] = "../../vector";
+
     void init();
     
     // 主渲染入口，每次迴圈呼叫這一個就好
@@ -50,7 +53,7 @@ private:
 
 private:
     // --- 視窗開關狀態 ---
-    bool m_showTFEditor = true;
+    bool m_showTFEditor = false;
     bool m_showDemoWindow = false;
     bool m_showOtherInfo = true;
 

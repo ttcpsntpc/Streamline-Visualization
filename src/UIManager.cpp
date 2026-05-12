@@ -61,7 +61,10 @@ void UIManager::drawMainMenuBar() {
 
 void UIManager::drawOtherInfo() {
     ImGui::Begin("Other Information", &m_showOtherInfo);
-
+    ImGui::InputText("File Path", filename, IM_ARRAYSIZE(filename));
+    if(ImGui::Button("load file")) {
+        isFileUpdata = true;
+    }
     // 使用指標來讀寫光線位置
     ImGui::Text("Light position: (%.1f, %.1f, %.1f)", light_pos.x, light_pos.y, light_pos.z);
     ImGui::Text("Eye position: (%.1f, %.1f, %.1f)", camera_pos.x, camera_pos.y, camera_pos.z);
