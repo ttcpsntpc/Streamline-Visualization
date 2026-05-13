@@ -307,6 +307,8 @@ int main()
 
     // configure global opengl state
     // -----------------------------
+    glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
     glEnable(GL_DEPTH_TEST);
     Shader_c shader("shader/shader.vs", "shader/shader.fs");
     Shader_c light_shader("shader/light_shader.vs", "shader/light_shader.fs");
