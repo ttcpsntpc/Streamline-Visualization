@@ -38,6 +38,7 @@ public:
     struct VecData {
         int resolution[2];
         vector<glm::vec2> data;
+        float max_speed;
     } vec_file;
 
     struct InfData
@@ -115,18 +116,24 @@ bool ReadFile_c::ReadVecFile(const char *vec_filename)
     vec_file.data.clear();
     vec_file.data.reserve(total_vector);
 
+    float max_speed = 0;
     float x, y;
     for(int i = 0; i < total_vector; i++) {
-        if(ifs >> y >> x)
+        if(ifs >> y >> x) {
             vec_file.data.push_back(glm::vec2(x, y));
+            float speed = sqrt(x * x + y * y);
+            max_speed = (speed > max_speed) ? speed : max_speed;
+        }
         else {
             cout<<"Warning: 資料實際個數和resolution乘積不一致"<<endl;
             return false;
         }
     }
+    vec_file.max_speed = max_speed;
 
     ifs.close();
     cout<<"vector resolution: "<<vec_file.resolution[0]<<" "<<vec_file.resolution[1]<<endl;
+    cout<<"max speed: "<<vec_file.max_speed<<endl;
     return true;
 }
 

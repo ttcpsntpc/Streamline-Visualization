@@ -40,6 +40,9 @@ public:
     int getNormalizationMode() { return data_normalization; } // 0: raw data, 1: CDE, 2: CLAHE 
     unsigned int getTFTextureID() const { return m_TFTextureID; }
 
+    // --- Transfer Function ---
+    float evaluateChannel(int channelIndex, float x);
+
 private:
     // --- UI 繪製區塊 (把不同功能拆成獨立函式) ---
     void drawMainMenuBar();
@@ -48,7 +51,6 @@ private:
 
     // --- Transfer Function 內部邏輯 ---
     void initTF();
-    float evaluateChannel(int channelIndex, float x);
     void updateTFTexture();
 
 private:
@@ -57,7 +59,7 @@ private:
     bool m_showDemoWindow = false;
     bool m_showOtherInfo = true;
 
-    // --- Transfer Function 狀態變數 ---
+    // --- Transfer Function 變數 ---
     float xRange[2] = {0.0f, 1.0f};
     float yRange[2] = {0.0f, 1.0f};
     float zRange[2] = {0.0f, 1.0f};

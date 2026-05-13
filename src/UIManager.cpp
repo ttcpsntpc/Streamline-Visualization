@@ -210,7 +210,7 @@ void UIManager::updateTFTexture() {
         transfer_function[i][0] = (unsigned char)(evaluateChannel(0, x) * 255.0f);
         transfer_function[i][1] = (unsigned char)(evaluateChannel(1, x) * 255.0f);
         transfer_function[i][2] = (unsigned char)(evaluateChannel(2, x) * 255.0f);
-        transfer_function[i][3] = (unsigned char)(evaluateChannel(3, x) * 5.0f); // 注意！不透明度約限制在五以內比較好看
+        transfer_function[i][3] = (unsigned char)(evaluateChannel(3, x) * 255.0f); // 注意！不透明度約限制在五以內比較好看
     }
     glBindTexture(GL_TEXTURE_1D, m_TFTextureID);
     glTexSubImage1D(GL_TEXTURE_1D, 0, 0, tf_size, GL_RGBA, GL_UNSIGNED_BYTE, transfer_function);

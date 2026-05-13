@@ -57,10 +57,11 @@ const int DOMAIN_HEIGHT = 128;
 const int DOMAIN_START_X = 20; // 白色背景offset
 const int DOMAIN_START_Y = 20;
 
-unsigned short level0[128 * 128] = {0};
+int grid_size[3] = {64, 128, 256};
+unsigned short grid_level0[64 * 64] = {0}, grid_level1[128 * 128] = {0}, grid_level2[256 * 256] = {0};
 unsigned short n = 0; // 幾條streamline
 unsigned short id = 0; // 幾條streamline
-float step = 0.1f;
+float step = 0.2f;
 struct SLposition { // 該條streamline的點座標
     glm::vec2 pos;
     glm::vec2 direction;
@@ -185,14 +186,17 @@ vector<vector<Vertex_c>> calculateVectorField(float step) {
     struct Streamline *streamline, *first_streamline;
     // initialize
     n = id = 0;
-    memset(level0, 0, sizeof(level0));
+    memset(grid_level0, 0, sizeof(grid_level0));
+    memset(grid_level1, 0, sizeof(grid_level1));
+    memset(grid_level2, 0, sizeof(grid_level2));
+    
 
     for(int i = 0; i < 128; i++) {
         for(int j = 0; j < 128; j++) {
-            if(level0[j * 128 + i] == 0) { // 還沒有被佔位
+            if(grid_level0[j * 128 + i] == 0) { // 還沒有被佔位
                 n++;
                 id++;
-                level0[j * 128 + i] = id; // 原點佔位
+                grid_level0[j * 128 + i] = id; // 原點佔位
                 // 創建新的streamline
                 if(id == 1) { 
                     streamline = new Streamline{id};
@@ -205,7 +209,7 @@ vector<vector<Vertex_c>> calculateVectorField(float step) {
                 float x = DOMAIN_START_X + (i + 0.5) * DOMAIN_WIDTH / 128;
                 float y = DOMAIN_START_Y + (j + 0.5) * DOMAIN_HEIGHT / 128;
                 streamline->seed = new SLposition{glm::vec2(x, y)}; // 加入seed
-                int p_num = seeding(streamline->seed, streamline->id, level0, 128, step, 1000);
+                int p_num = seeding(streamline->seed, streamline->id, grid_level0, 128, step, 2000);
                 if(p_num < 5) { // 太短的清掉
                     SLposition *points = streamline->seed;
                     points = points->next;
@@ -236,10 +240,12 @@ vector<vector<Vertex_c>> calculateVectorField(float step) {
         }
         while(points->last != nullptr) points = points->last;
         while(points->next != nullptr) {
-            Vertex_c vertex1{{points->pos.x, points->pos.y, 1.0f}, {0.0f, 0.0f, 0.0f}, {}, {}};
+            float speed = points->speed / rf.vec_file.max_speed;
+            Vertex_c vertex1{{points->pos.x, points->pos.y, 1.0f}, {0.0f, 0.0f, 0.0f}, {speed}, {}};
             sl_vertices_temp.push_back(vertex1);
+            
             SLposition *temp = points->next;
-            Vertex_c vertex2{{temp->pos.x, temp->pos.y, 1.0f}, {0.0f, 0.0f, 0.0f}, {}, {}};
+            Vertex_c vertex2{{temp->pos.x, temp->pos.y, 1.0f}, {0.0f, 0.0f, 0.0f}, {speed}, {}};
             sl_vertices_temp.push_back(vertex2);
             points = points->next;
         }
@@ -385,7 +391,7 @@ int main()
         light_shader.setVec3("lightPos", lightPos);
         light_shader.setMat4("view", view);
         light_shader.setMat4("projection", projection);
-        
+        light_shader.setBool("hasTF", false);
         // draw the streamline background
         glBindVertexArray(square_white.VAO_);
         model = glm::mat4(1.0f);
@@ -395,12 +401,17 @@ int main()
         glDrawArrays(GL_TRIANGLES, 0, square_white.size);
 
         // draw the streamlines
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_1D, UI.getTFTextureID());
+        light_shader.setBool("hasTF", true);
+        light_shader.setInt("texture0", 0);
         for(int i = 0; i < n; i++) {
             glBindVertexArray(streamline[i].VAO_);
             model = glm::mat4(1.0f);
             light_shader.setMat4("model", model);
             glDrawArrays(GL_LINES, 0, streamline[i].size);
         }
+        light_shader.setBool("hasTF", false);
 
         // draw the light
         glBindVertexArray(light_cube.VAO_);
