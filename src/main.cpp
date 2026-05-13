@@ -49,7 +49,7 @@ bool moveObject = 0; // 在移動光源或是相機
 float deltaTime = 0.0f; // time between current frame and last frame
 float lastFrame = 0.0f;
 
-ReadFile_c rf("../../vector/1");
+ReadFile_c rf("../../vector/10");
 UIManager UI;
 
 const int DOMAIN_WIDTH = 128; // 白色背景大小
@@ -57,7 +57,7 @@ const int DOMAIN_HEIGHT = 128;
 const int DOMAIN_START_X = 20; // 白色背景offset
 const int DOMAIN_START_Y = 20;
 
-int grid_size[3] = {64, 128, 256};
+int grid_size[] = {64, 128, 256};
 unsigned short grid_level0[64 * 64] = {0}, grid_level1[128 * 128] = {0}, grid_level2[256 * 256] = {0};
 unsigned short n = 0; // 最後總共幾條streamline (刪去短的後)
 unsigned short id = 0; // 創建的第幾條streamline
@@ -192,12 +192,12 @@ vector<vector<Vertex_c>> calculateVectorField(float step) {
     memset(grid_level2, 0, sizeof(grid_level2));
     
 
-    for(int i = 0; i < 128; i++) {
-        for(int j = 0; j < 128; j++) {
-            if(grid_level0[j * 128 + i] == 0) { // 還沒有被佔位
+    for(int i = 0; i < grid_size[0]; i++) {
+        for(int j = 0; j < grid_size[0]; j++) {
+            if(grid_level0[j * grid_size[0] + i] == 0) { // 還沒有被佔位
                 n++;
                 id++;
-                grid_level0[j * 128 + i] = id; // 原點佔位
+                grid_level0[j * grid_size[0] + i] = id; // 原點佔位
                 // 創建新的streamline
                 if(id == 1) { 
                     streamline = new Streamline{id};
@@ -207,10 +207,10 @@ vector<vector<Vertex_c>> calculateVectorField(float step) {
                     streamline = streamline->next;
                 }
                 // 網格中間位置
-                float x = DOMAIN_START_X + (i + 0.5) * DOMAIN_WIDTH / 128;
-                float y = DOMAIN_START_Y + (j + 0.5) * DOMAIN_HEIGHT / 128;
+                float x = DOMAIN_START_X + (i + 0.5) * DOMAIN_WIDTH / grid_size[0];
+                float y = DOMAIN_START_Y + (j + 0.5) * DOMAIN_HEIGHT / grid_size[0];
                 streamline->seed = new SLposition{glm::vec2(x, y)}; // 加入seed
-                int p_num = seeding(streamline->seed, streamline->id, grid_level0, 128, step, 2000);
+                int p_num = seeding(streamline->seed, streamline->id, grid_level0, grid_size[0], step, 2000);
                 if(p_num < 5) { // 太短的清掉
                     SLposition *points = streamline->seed;
                     points = points->next;
@@ -242,21 +242,33 @@ vector<vector<Vertex_c>> calculateVectorField(float step) {
             first_streamline = first_streamline->next;
             continue;
         }
-        while(points->last != nullptr) points = points->last;
-        while(points->next != nullptr) {
+        while(points->next != nullptr) points = points->next;
+        while(points->last != nullptr) {
             p_counter++;
             float speed = points->speed / rf.vec_file.max_speed;
-            float opacity = 1.0f;
-            // tapering effect: 越接近streamline尾端越淡, 從一半開始變淡，最淡到0.2
-            if(p_counter > p_num * 0.5) opacity = 1.0f - (float)(p_counter - p_num * 0.5) / (p_num * 0.5) * 0.8;
+            float opacity = 1.0f - (float)p_counter / p_num;
+            // tapering effect: 越接近streamline尾端越淡
+            
+            // 線段改成畫四邊形，一樣頭最粗，尾巴最細，粗度根據grid size調整
+            float thickness = 0.5f * (DOMAIN_WIDTH / grid_size[0]) * opacity;
+            SLposition *point_next = points->last;
+            glm::vec2 dir = point_next->pos - points->pos;
+            glm::vec2 vertical_dir = glm::vec2(-dir.y, dir.x);
+            vertical_dir = glm::normalize(vertical_dir) * thickness * 0.5f;
+            // glm::vec2 p0 = points->pos - vertical_dir, p1 = points->pos + vertical_dir, p2 = point_next->pos - vertical_dir, p3 = point_next->pos + vertical_dir;
+
+            // sl_vertices_temp.push_back(Vertex_c{{p0.x, p0.y, 1.0f}, {0.0f, 0.0f, 0.0f}, {speed, opacity}, {}});
+            // sl_vertices_temp.push_back(Vertex_c{{p1.x, p1.y, 1.0f}, {0.0f, 0.0f, 0.0f}, {speed, opacity}, {}});
+            // sl_vertices_temp.push_back(Vertex_c{{p2.x, p2.y, 1.0f}, {0.0f, 0.0f, 0.0f}, {speed, opacity}, {}});
+            // sl_vertices_temp.push_back(Vertex_c{{p3.x, p3.y, 1.0f}, {0.0f, 0.0f, 0.0f}, {speed, opacity}, {}});
 
             Vertex_c vertex1{{points->pos.x, points->pos.y, 1.0f}, {0.0f, 0.0f, 0.0f}, {speed, opacity}, {}};
             sl_vertices_temp.push_back(vertex1);
             
-            SLposition *temp = points->next;
+            SLposition *temp = points->last;
             Vertex_c vertex2{{temp->pos.x, temp->pos.y, 1.0f}, {0.0f, 0.0f, 0.0f}, {speed, opacity}, {}};
             sl_vertices_temp.push_back(vertex2);
-            points = points->next;
+            points = points->last;
         }
         sl_vertices.push_back(sl_vertices_temp);
         sl_vertices_temp.clear();
@@ -416,11 +428,18 @@ int main()
         glBindTexture(GL_TEXTURE_1D, UI.getTFTextureID());
         light_shader.setBool("hasTF", true);
         light_shader.setInt("texture0", 0);
+        model = glm::mat4(1.0f);
+        light_shader.setMat4("model", model);
         for(int i = 0; i < n; i++) {
             glBindVertexArray(streamline[i].VAO_);
-            model = glm::mat4(1.0f);
-            light_shader.setMat4("model", model);
-            glDrawArrays(GL_LINES, 0, streamline[i].size);
+
+            int num_vertices = streamline[i].size;
+            int num_segments = num_vertices / 2;
+            for(int j = 0; j < num_segments; j++) {
+                float thickness = 2.0f * std::min(DOMAIN_WIDTH, DOMAIN_HEIGHT) / grid_size[0] * (1.0f - j / num_segments);
+                glLineWidth(thickness);
+                glDrawArrays(GL_LINES, j * 2, 2);
+            }
         }
         light_shader.setBool("hasTF", false);
 
