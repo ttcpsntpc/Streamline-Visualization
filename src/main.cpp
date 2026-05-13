@@ -49,7 +49,7 @@ bool moveObject = 0; // 在移動光源或是相機
 float deltaTime = 0.0f; // time between current frame and last frame
 float lastFrame = 0.0f;
 
-ReadFile_c rf("../../vector/10");
+ReadFile_c rf("../../vector/11");
 UIManager UI;
 
 const int DOMAIN_WIDTH = 128; // 白色背景大小
@@ -62,6 +62,7 @@ unsigned short grid_level0[64 * 64] = {0}, grid_level1[128 * 128] = {0}, grid_le
 unsigned short n = 0; // 最後總共幾條streamline (刪去短的後)
 unsigned short id = 0; // 創建的第幾條streamline
 float step = 0.2f;
+int min_p_num = 50, max_p_num = 2000;
 struct SLposition { // 該條streamline的點座標
     glm::vec2 pos;
     glm::vec2 direction;
@@ -183,55 +184,121 @@ int seeding(SLposition *seed, unsigned short id, unsigned short *mesh, int mesh_
 
     return p_num;
 }
-vector<vector<Vertex_c>> calculateVectorField(float step) {
-    struct Streamline *streamline, *first_streamline;
+
+struct Streamline* calculateVectorField(float step, unsigned short *mesh, int mesh_size, struct Streamline **head) {
+    // 1. 找到目前串列的尾端，避免覆蓋 head
+    struct Streamline *curr_tail = *head;
+    if (curr_tail != nullptr) {
+        while (curr_tail->next != nullptr) curr_tail = curr_tail->next;
+    }
+
+    for(int i = 0; i < mesh_size; i++) {
+        for(int j = 0; j < mesh_size; j++) {
+            if(mesh[j * mesh_size + i] == 0) {
+                n++; id++;
+                mesh[j * mesh_size + i] = id;
+
+                // 2. 建立新節點並正確串接
+                struct Streamline *new_sl = new Streamline{id};
+                if (*head == nullptr) {
+                    *head = new_sl;
+                    curr_tail = new_sl;
+                } else {
+                    curr_tail->next = new_sl;
+                    curr_tail = new_sl;
+                }
+
+                // ... 設定種子點與 tracking ... [cite: 6, 7]
+                float x = DOMAIN_START_X + (i + 0.5f) * DOMAIN_WIDTH / mesh_size;
+                float y = DOMAIN_START_Y + (j + 0.5f) * DOMAIN_HEIGHT / mesh_size;
+                curr_tail->seed = new SLposition{glm::vec2(x, y)};
+                
+                int p_num = seeding(curr_tail->seed, id, mesh, mesh_size, step, max_p_num);
+
+                // 3. 過濾太短的線 (門檻隨層級調整)
+                if(p_num < min_p_num) { // 提高門檻減少碎線
+                    SLposition *points = curr_tail->seed;
+                    points = points->next;
+                    while(points != nullptr) {
+                        SLposition *temp = points;
+                        points = points->next;
+                        
+                        int cell_i = (temp->pos.x - DOMAIN_START_X) * (mesh_size) / DOMAIN_WIDTH;
+                        int cell_j = (temp->pos.y - DOMAIN_START_Y) * (mesh_size) / DOMAIN_HEIGHT;
+                        int mesh_idx = cell_j * mesh_size + cell_i;
+                        mesh[mesh_idx] = 0;
+                        
+                        delete(temp);
+                    }
+                    points = curr_tail->seed;
+                    while(points != nullptr) {
+                        SLposition *temp = points;
+                        points = points->last;
+                        
+                        int cell_i = (temp->pos.x - DOMAIN_START_X) * (mesh_size) / DOMAIN_WIDTH;
+                        int cell_j = (temp->pos.y - DOMAIN_START_Y) * (mesh_size) / DOMAIN_HEIGHT;
+                        int mesh_idx = cell_j * mesh_size + cell_i;
+                        mesh[mesh_idx] = 0;
+                        
+                        delete(temp);
+                    }
+                    curr_tail->seed = nullptr;
+                    n--;
+                }
+                curr_tail->p_num = p_num;
+            }
+        }
+    }
+    return *head;
+}
+
+void MapExistingStreamlinesToMesh(Streamline* head, unsigned short* mesh, int mesh_size) {
+    Streamline* curr_sl = head;
+    while (curr_sl != nullptr) {
+        SLposition* p = curr_sl->seed;
+        // 雙向遍歷流線上的所有點 [cite: 35]
+        // 往後找起點
+        while(p->last != nullptr) p = p->last;
+        
+        // 遍歷所有點並標記網格
+        while (p != nullptr) {
+            // 使用你現有的座標轉換邏輯 [cite: 7, 15]
+            int cell_i = (p->pos.x - DOMAIN_START_X) * mesh_size / DOMAIN_WIDTH;
+            int cell_j = (p->pos.y - DOMAIN_START_Y) * mesh_size / DOMAIN_HEIGHT;
+            
+            if (cell_i >= 0 && cell_i < mesh_size && cell_j >= 0 && cell_j < mesh_size) {
+                mesh[cell_j * mesh_size + cell_i] = curr_sl->id; 
+            }
+            p = p->next;
+        }
+        curr_sl = curr_sl->next;
+    }
+}
+
+vector<vector<Vertex_c>> hierarchicalStreamline(float step) {
+    struct Streamline *first_streamline = nullptr;
     // initialize
     n = id = 0;
     memset(grid_level0, 0, sizeof(grid_level0));
     memset(grid_level1, 0, sizeof(grid_level1));
     memset(grid_level2, 0, sizeof(grid_level2));
     
+    for (int level = 1; level < 2; level++) {
+        unsigned short *grid = nullptr;
 
-    for(int i = 0; i < grid_size[0]; i++) {
-        for(int j = 0; j < grid_size[0]; j++) {
-            if(grid_level0[j * grid_size[0] + i] == 0) { // 還沒有被佔位
-                n++;
-                id++;
-                grid_level0[j * grid_size[0] + i] = id; // 原點佔位
-                // 創建新的streamline
-                if(id == 1) { 
-                    streamline = new Streamline{id};
-                    first_streamline = streamline;
-                } else {
-                    streamline->next = new Streamline{id};
-                    streamline = streamline->next;
-                }
-                // 網格中間位置
-                float x = DOMAIN_START_X + (i + 0.5) * DOMAIN_WIDTH / grid_size[0];
-                float y = DOMAIN_START_Y + (j + 0.5) * DOMAIN_HEIGHT / grid_size[0];
-                streamline->seed = new SLposition{glm::vec2(x, y)}; // 加入seed
-                int p_num = seeding(streamline->seed, streamline->id, grid_level0, grid_size[0], step, 2000);
-                if(p_num < 5) { // 太短的清掉
-                    SLposition *points = streamline->seed;
-                    points = points->next;
-                    while(points != nullptr) {
-                        SLposition *temp = points;
-                        points = points->next;
-                        delete(temp);
-                    }
-                    points = streamline->seed;
-                    while(points != nullptr) {
-                        SLposition *temp = points;
-                        points = points->last;
-                        delete(temp);
-                    }
-                    streamline->seed = nullptr;
-                    n--;
-                }
-                streamline->p_num = p_num;
-            }
+        if(level == 0) grid = grid_level0;
+        else if(level == 1) grid = grid_level1;
+        else if(level == 2) grid = grid_level2;
+
+        if (first_streamline != nullptr) {
+            MapExistingStreamlinesToMesh(first_streamline, grid, grid_size[level]);
         }
+
+        first_streamline = calculateVectorField(step, grid, grid_size[level], &first_streamline);
+        cout<<level<<endl;
+        
     }
+
     vector<vector<Vertex_c>> sl_vertices;
     vector<Vertex_c> sl_vertices_temp;
     while(first_streamline != nullptr) {
@@ -247,21 +314,7 @@ vector<vector<Vertex_c>> calculateVectorField(float step) {
             p_counter++;
             float speed = points->speed / rf.vec_file.max_speed;
             float opacity = 1.0f - (float)p_counter / p_num;
-            // tapering effect: 越接近streamline尾端越淡
             
-            // 線段改成畫四邊形，一樣頭最粗，尾巴最細，粗度根據grid size調整
-            float thickness = 0.5f * (DOMAIN_WIDTH / grid_size[0]) * opacity;
-            SLposition *point_next = points->last;
-            glm::vec2 dir = point_next->pos - points->pos;
-            glm::vec2 vertical_dir = glm::vec2(-dir.y, dir.x);
-            vertical_dir = glm::normalize(vertical_dir) * thickness * 0.5f;
-            // glm::vec2 p0 = points->pos - vertical_dir, p1 = points->pos + vertical_dir, p2 = point_next->pos - vertical_dir, p3 = point_next->pos + vertical_dir;
-
-            // sl_vertices_temp.push_back(Vertex_c{{p0.x, p0.y, 1.0f}, {0.0f, 0.0f, 0.0f}, {speed, opacity}, {}});
-            // sl_vertices_temp.push_back(Vertex_c{{p1.x, p1.y, 1.0f}, {0.0f, 0.0f, 0.0f}, {speed, opacity}, {}});
-            // sl_vertices_temp.push_back(Vertex_c{{p2.x, p2.y, 1.0f}, {0.0f, 0.0f, 0.0f}, {speed, opacity}, {}});
-            // sl_vertices_temp.push_back(Vertex_c{{p3.x, p3.y, 1.0f}, {0.0f, 0.0f, 0.0f}, {speed, opacity}, {}});
-
             Vertex_c vertex1{{points->pos.x, points->pos.y, 1.0f}, {0.0f, 0.0f, 0.0f}, {speed, opacity}, {}};
             sl_vertices_temp.push_back(vertex1);
             
@@ -347,7 +400,7 @@ int main()
     light_cube.CreateObject(vertices[4], {});
     
     UI.init();
-    vector<vector<Vertex_c>> sl_vertices = calculateVectorField(step);
+    vector<vector<Vertex_c>> sl_vertices = hierarchicalStreamline(step);
     Object_c *streamline = new Object_c[n];
     for(int i = 0; i < n; i++) {
         streamline[i].CreateObject(sl_vertices[i], {});
@@ -382,7 +435,7 @@ int main()
             UI.isFileUpdata = false;
             rf.readFile(UI.filename);
 
-            sl_vertices = calculateVectorField(step);
+            sl_vertices = hierarchicalStreamline(step);
             delete[] streamline;
             streamline = new Object_c[n];
             for(int i = 0; i < n; i++) {
