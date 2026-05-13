@@ -13,8 +13,9 @@ uniform bool hasTF;
 vec3 PhongShading(vec3 gradient,vec3 color);
 
 void main(){
+    vec4 color = texture(texture0, TexCoord.s);
     if(hasTF == true)    
-        FragColor = vec4(texture(texture0, TexCoord.s));
+        FragColor = vec4(color.rgb, TexCoord.t);
     else
         FragColor = vec4(ourColor, 1.0f);
 }

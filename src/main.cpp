@@ -59,8 +59,8 @@ const int DOMAIN_START_Y = 20;
 
 int grid_size[3] = {64, 128, 256};
 unsigned short grid_level0[64 * 64] = {0}, grid_level1[128 * 128] = {0}, grid_level2[256 * 256] = {0};
-unsigned short n = 0; // 幾條streamline
-unsigned short id = 0; // 幾條streamline
+unsigned short n = 0; // 最後總共幾條streamline (刪去短的後)
+unsigned short id = 0; // 創建的第幾條streamline
 float step = 0.2f;
 struct SLposition { // 該條streamline的點座標
     glm::vec2 pos;
@@ -71,6 +71,7 @@ struct SLposition { // 該條streamline的點座標
 };
 struct Streamline {
     unsigned short id; // 第幾條streamline, 從1開始編號
+    int p_num = 0;
     SLposition *seed = nullptr; // 該條streamline的點座標
     Streamline *next = nullptr; // 下一條streamline
 };
@@ -227,12 +228,15 @@ vector<vector<Vertex_c>> calculateVectorField(float step) {
                     streamline->seed = nullptr;
                     n--;
                 }
+                streamline->p_num = p_num;
             }
         }
     }
     vector<vector<Vertex_c>> sl_vertices;
     vector<Vertex_c> sl_vertices_temp;
     while(first_streamline != nullptr) {
+        int p_num = first_streamline->p_num;
+        int p_counter = 0;
         SLposition *points = first_streamline->seed;
         if(points == nullptr) {
             first_streamline = first_streamline->next;
@@ -240,12 +244,17 @@ vector<vector<Vertex_c>> calculateVectorField(float step) {
         }
         while(points->last != nullptr) points = points->last;
         while(points->next != nullptr) {
+            p_counter++;
             float speed = points->speed / rf.vec_file.max_speed;
-            Vertex_c vertex1{{points->pos.x, points->pos.y, 1.0f}, {0.0f, 0.0f, 0.0f}, {speed}, {}};
+            float opacity = 1.0f;
+            // tapering effect: 越接近streamline尾端越淡, 從一半開始變淡，最淡到0.2
+            if(p_counter > p_num * 0.5) opacity = 1.0f - (float)(p_counter - p_num * 0.5) / (p_num * 0.5) * 0.8;
+
+            Vertex_c vertex1{{points->pos.x, points->pos.y, 1.0f}, {0.0f, 0.0f, 0.0f}, {speed, opacity}, {}};
             sl_vertices_temp.push_back(vertex1);
             
             SLposition *temp = points->next;
-            Vertex_c vertex2{{temp->pos.x, temp->pos.y, 1.0f}, {0.0f, 0.0f, 0.0f}, {speed}, {}};
+            Vertex_c vertex2{{temp->pos.x, temp->pos.y, 1.0f}, {0.0f, 0.0f, 0.0f}, {speed, opacity}, {}};
             sl_vertices_temp.push_back(vertex2);
             points = points->next;
         }
