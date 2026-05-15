@@ -49,7 +49,7 @@ bool moveObject = 0; // 在移動光源或是相機
 float deltaTime = 0.0f; // time between current frame and last frame
 float lastFrame = 0.0f;
 
-ReadFile_c rf("../../vector/11");
+ReadFile_c rf("../../vector/butterfly");
 UIManager UI;
 
 const int DOMAIN_WIDTH = 128; // 白色背景大小
@@ -61,7 +61,7 @@ int grid_size[] = {64, 128, 256};
 unsigned short grid_level0[64 * 64] = {0}, grid_level1[128 * 128] = {0}, grid_level2[256 * 256] = {0};
 unsigned short n = 0; // 最後總共幾條streamline (刪去短的後)
 unsigned short id = 0; // 創建的第幾條streamline
-float step = 0.2f;
+float step = 0.2f; // 要固定或根據最大速度變化，讓數值誤差變小，跟網格大小無關
 int min_p_num = 50, max_p_num = 2000;
 struct SLposition { // 該條streamline的點座標
     glm::vec2 pos;
@@ -283,7 +283,7 @@ vector<vector<Vertex_c>> hierarchicalStreamline(float step) {
     memset(grid_level1, 0, sizeof(grid_level1));
     memset(grid_level2, 0, sizeof(grid_level2));
     
-    for (int level = 1; level < 2; level++) {
+    for (int level = 0; level < 1; level++) {
         unsigned short *grid = nullptr;
 
         if(level == 0) grid = grid_level0;
